@@ -1,25 +1,10 @@
 import json
 
 eval_file = './src/pipeline/dataset.json'
-with open('./data/Annotation_files/video_(1).txt', 'r') as f:
-    s = f.readlines()
+data = []
 
-print(s[0][:-1])
-
-le2i = {
-    "dataset": "Le2i",
-    "data": []
-}
-
-ur = {
-    "dataset": "UR",
-    "data": []
-}
-
-cauca = {
-    "dataset": "CAUCA Fall",
-    "data": []
-}
+fallcnt = 0
+adlcnt = 0
 
 for i in range(1, 71):
     groundtruth = ''
@@ -30,14 +15,19 @@ for i in range(1, 71):
         s = f.readlines()
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
+
+    if(groundtruth == "Fall"):
+        fallcnt += 1
+    else:
+        adlcnt += 1
 
     start = -1
     end = -1
@@ -62,10 +52,12 @@ for i in range(1, 71):
         "original_location": "Le2i Dataset",
         "groundtruth": groundtruth,
         "fall_start_frame": start,
-        "fall_end_frame": end
+        "fall_end_frame": end,
+        "point_of_view": "Wall-Mounted Camera",
+        "action": groundtruth
     }
 
-    le2i["data"].append(dict1)
+    data.append(dict1)
 
 for i in range(71, 131):
     groundtruth = ''
@@ -76,15 +68,19 @@ for i in range(71, 131):
         s = f.readlines()
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
 
+    if(groundtruth == "Fall"):
+        fallcnt += 1
+    else:
+        adlcnt += 1
     start = -1
     end = -1
     try:
@@ -108,28 +104,42 @@ for i in range(71, 131):
         "original_location": "Le2i Dataset",
         "groundtruth": groundtruth,
         "fall_start_frame": start,
-        "fall_end_frame": end
+        "fall_end_frame": end,
+        "point_of_view": "Wall-Mounted Camera",
+        "action": groundtruth
     }
 
-    le2i["data"].append(dict1)
+    data.append(dict1)
 
 for i in range(131, 191):
     groundtruth = ''
     file_path = "./data/Annotation_files/video_(" + str(i) + ").txt"
 
+    with open(file_path, "r") as f:
+        s = f.readlines()
+
     pov = 'Camera 1 (Birds\' Eye View)'
     if(i % 2 == 1):
         pov = 'Camera 0 (Side/Front/Ground Level View)'
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
+    
+    if(groundtruth == 'ADL'):
+        start = -1
+        end = -1
+    else:
+        start = None
+        end = None
+    
+    f.close()
 
     dict1 = {
         "id": i,
@@ -137,28 +147,43 @@ for i in range(131, 191):
         "location": "Workspace",
         "original_location": "UR Dataset",
         "groundtruth": groundtruth,
-        "point_of_view": pov
+        "fall_start_frame": start,
+        "fall_end_frame": end,
+        "point_of_view": pov,
+        "action": groundtruth
     }
 
-    ur["data"].append(dict1)
+    data.append(dict1)
 
 for i in range(191, 231):
     groundtruth = ''
     file_path = "./data/Annotation_files/video_(" + str(i) + ").txt"
 
+    with open(file_path, "r") as f:
+        s = f.readlines()
+
     pov = 'Camera 1 (Birds\' Eye View)'
     if(i % 2 == 1):
         pov = 'Camera 0 (Side/Front/Ground Level View)'
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
+
+    if(groundtruth == 'ADL'):
+        start = -1
+        end = -1
+    else:
+        start = None
+        end = None
+
+    f.close()
 
     dict1 = {
         "id": i,
@@ -166,10 +191,13 @@ for i in range(191, 231):
         "location": "Workspace",
         "original_location": "UR Dataset",
         "groundtruth": groundtruth,
-        "point_of_view": pov
+        "fall_start_frame": start,
+        "fall_end_frame": end,
+        "point_of_view": pov,
+        "action": groundtruth
     }
 
-    ur["data"].append(dict1)
+    data.append(dict1)
 
 for i in range(231, 281):
     groundtruth = ''
@@ -177,6 +205,9 @@ for i in range(231, 281):
     subject = i % 10
     if(subject == 0):
         subject = 10
+
+    with open(file_path, "r") as f:
+        s = f.readlines()
     
     act = 'Backwards Fall'
 
@@ -190,14 +221,23 @@ for i in range(231, 281):
         act = 'Sitting Fall'
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
+
+    if(groundtruth == 'ADL'):
+        start = -1
+        end = -1
+    else:
+        start = None
+        end = None
+
+    f.close()
 
     dict1 = {
         "id": i,
@@ -206,10 +246,13 @@ for i in range(231, 281):
         "person": "Subject " + str(subject),
         "original_location": "CAUCAFall Dataset",
         "groundtruth": groundtruth,
+        "fall_start_frame": start,
+        "fall_end_frame": end,
+        "point_of_view": "Wall-Mounted Camera",
         "action": act
     }
 
-    cauca["data"].append(dict1)
+    data.append(dict1)
 
 for i in range(281, 331):
     groundtruth = ''
@@ -218,6 +261,9 @@ for i in range(281, 331):
     if(subject == 0):
         subject = 10
     
+    with open(file_path, "r") as f:
+        s = f.readlines()
+
     act = 'Hop'
 
     if(i > 290):
@@ -230,14 +276,23 @@ for i in range(281, 331):
         act = 'Walk'
 
     try:
-        if(s[0] == 'Fall\n'):
+        if 'Fall' in s[0]:
             groundtruth = "Fall"
-        elif(s[0] == 'ADL\n' or int(s[0]) == 0):
+        elif('ADL' in s[0] or int(s[0]) == 0):
             groundtruth = "ADL"
         else:
             groundtruth = "Fall"
     except:
         groundtruth = "ADL"
+
+    if(groundtruth == 'ADL'):
+        start = -1
+        end = -1
+    else:
+        start = None
+        end = None
+
+    f.close()
 
     dict1 = {
         "id": i,
@@ -246,21 +301,13 @@ for i in range(281, 331):
         "person": "Subject " + str(subject),
         "original_location": "CAUCAFall Dataset",
         "groundtruth": groundtruth,
+        "fall_start_frame": start,
+        "fall_end_frame": end,
+        "point_of_view": "Wall-Mounted Camera",
         "action": act
     }
 
-    cauca["data"].append(dict1)
-
-
-try:
-    with open(eval_file, 'r') as f:
-        data = json.load(f)
-except:
-    data = []
-
-data.append(le2i)
-data.append(ur)
-data.append(cauca)
+    data.append(dict1)
 
 with open(eval_file, 'w') as outfile:
     json.dump(data, outfile, indent=4)

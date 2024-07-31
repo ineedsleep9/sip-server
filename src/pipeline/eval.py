@@ -60,14 +60,35 @@ def get_y_true_custom(ground_truth_directory, vid_nums):
     return y_true
 
 def evaluate(y_true, results):
-    # y_true = answers
     # calculate and get metrics
-    precision = precision_score(y_true, results, average='weighted')
-    recall = recall_score(y_true, results, average='weighted')
-    f1 = f1_score(y_true, results, average='weighted')
+    tp, tn, fp, fn = 0, 0, 0, 0
+    for i in range(len(y_true)):
+        if(len(results[i]) > 1):
+            if(results[i][:1] == 'Y'):
+                fp += 1
+            else: 
+                fn += 1
+        elif(y_true[i] != results[i]):
+            if(y_true[i] == 'N'):
+                fp += 1
+            else:
+                fn += 1
+        else:
+            if(y_true[i] == 'N'):
+                tn += 1
+            else:
+                tp += 1
+
+    precision = tp/(tp + fp) if(tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
     #return metrics in dictionary
     return {
+        'tp': tp,
+        'tn': tn,
+        'fp': fp,
+        'fn': fn,
         'precision': precision,
         'recall': recall,
         'f1_score': f1
@@ -85,11 +106,13 @@ def random_vid_indices(numofvids):
 
 def get_frames_llava(video_path):
     container = av.open(video_path)
-    video = cv2.VideoCapture(video_path)
 
+    fps = int(container.streams.video[0].average_rate)
+
+    # sample uniformly 8 frames from the video
     total_frames = container.streams.video[0].frames
-    indices = np.arange(0, total_frames, total_frames / 8).astype(int)
-    fps = video.get(cv2.CAP_PROP_FPS)
+    indices = np.arange(0, total_frames, fps).astype(int)
+    
     times = indices/fps
 
     return indices.tolist(), times.tolist()
@@ -129,7 +152,7 @@ if __name__ == '__main__':
 
     seconds_per_frame = 1 # for GPT-4o
 
-    model = BaselineModel('gpt-4o', seconds_per_frame=seconds_per_frame)
+    model = VideoLLaVA()
 
     total_precision = []
     total_recall = []
@@ -152,7 +175,7 @@ if __name__ == '__main__':
         print(k)
         while (True):
             try: 
-                update_evaluation_json_custom(video_directory=vid_directory, output_file=out_file, model=model, vidnums=k)
+                update_evaluation_json_custom(video_directory=vid_directory, output_file=out_file, model=model, vidnums=k, client=client)
                 break
             except Exception as e:
                 print("Error!", e)
@@ -161,11 +184,13 @@ if __name__ == '__main__':
         # get results array (res) from json file
         with open(out_file, 'r') as f:
             results = json.load(f)
+
+        if(isinstance(model, VideoLLaVA)):
+            for i in range(len(results)):
+                results[i] = results[i].split('ASSISTANT: ')[1]
         
         predictions = []
         for r in results:
-            if(isinstance(model, VideoLLaVA)):
-                r = r.split('ASSISTANT: ')[1]
             if(r[:1] == 'Y' or r[:1] == 'N'):
                 predictions.append(r[:1])
                 continue
@@ -177,12 +202,76 @@ if __name__ == '__main__':
             else:
                 predictions.append("Y")
 
-        predictions = []
-
-        for n in results:
-            predictions.append(n[:1])
-
         y_true = get_y_true_custom("./data/Annotation_files", k)
+
+        for j in range(len(k)):
+            video_path = "./data/Videos/video_(" + str(k[j]) + ").avi"
+
+            frames, frametimes = get_frames_llava(video_path)
+            ans = ''
+            while (True):
+                try: 
+                    if(isinstance(model, BaselineModel)):
+                        ans = BaselineModel().eval_consistency(video_path, frames, results[j][3:])
+                    else:
+                        ans = BaselineModel().eval_consistency(video_path, frames, results[j])
+                    break
+                except Exception as e:
+                    print("Error!", e)
+                    continue
+
+            conf = float(re.search("[01][.][0-9]+", ans).group())
+            conf_dict = {
+                "batch_id": i,
+                "video_number": k[j],
+                "video_path": video_path,
+                "ground_truth": y_true[j],
+                "model_output": results[j],
+                "model_prediction": predictions[j],
+                "confidence_score": conf,
+                "educated_prediction": ans[-1:],
+                "confidence_score_explanation": ans
+            }
+
+            conf_list.append(conf)
+            conf_results.append(conf_dict)
+
+            low_conf = False
+            conflict = False
+
+            if(conf < 0.5):
+                low_conf_list.append(conf_dict)
+                low_conf = True
+                predictions[j] += '(low confidence)'
+            if(ans[-1:] != predictions[j]):
+                conflict = True
+                predictions[j] += '(conflict)'
+                if(not low_conf):
+                    low_conf_list.append(conf_dict)
+            
+            if(predictions[j] == y_true[j] and predictions[j] == ans[-1:] and not low_conf and not conflict):
+                continue
+            
+            seconds_per_frame = 1
+
+            faildict = {
+                "batch_id": i,
+                "ground_truth": y_true[j],
+                "model_output": results[j],
+                "model_prediction": predictions[j],
+                "false_positive": predictions[j][:1] == 'Y',
+                "false_negative": predictions[j][:1] == 'N',
+                "video_number": k[j],
+                "video_path":video_path,
+                "frame_numbers": frames,
+                "time_of_frames(seconds)": frametimes,
+                "confidence_score": conf,
+                "educated_prediction": ans[-1:],
+                "confidence_score_explanation": ans
+            }
+
+            failure_cases.append(faildict)
+
         #run the evaluate() function to get a dictionary of metrics
         evaluation_metrics = evaluate(y_true, predictions)
 
@@ -201,79 +290,16 @@ if __name__ == '__main__':
             print(e)
             data = []
 
-        false_pos = 0
-        true_pos = 0
-        false_neg = 0
-        true_neg = 0
-
-        for j in range(len(k)):
-            video_path = "./data/Videos/video_(" + str(k[j]) + ").avi"
-
-            frames, frametimes = get_frames(video_path, seconds_per_frame)
-            ans = ''
-            while (True):
-                try: 
-                    ans = BaselineModel().eval_consistency(video_path, frames, results[j][3:])
-                    break
-                except Exception as e:
-                    print("Error!", e)
-                    continue
-
-            conf = float(re.search("[01][.][0-9]+", ans).group())
-            conf_dict = {
-                "batch_id": i,
-                "ground_truth": y_true[j],
-                "model_output": results[j],
-                "model_prediction": predictions[j],
-                "confidence_score": conf,
-                "confidence_score_explanation": ans
-            }
-
-            conf_list.append(conf)
-            conf_results.append(conf_dict)
-
-            if(conf < 0.5):
-                low_conf_list.append(conf_dict)
-            
-            if(predictions[j] == y_true[j]):
-                if(predictions[j] == 'Y'): 
-                    true_pos += 1
-                else:
-                    true_neg += 1
-                continue
-            
-            if(y_true[j] == 'N'):
-                false_pos += 1
-            else:
-                false_neg += 1
-            
-            seconds_per_frame = 1
-
-            faildict = {
-                "batch_id": i,
-                "ground_truth": y_true[j],
-                "model_output": results[j],
-                "model_prediction": predictions[j],
-                "false_positive": y_true[j] == 'N',
-                "false_negative": y_true[j] == 'N',
-                "video_number": k[j],
-                "video_path":video_path,
-                "frame_numbers": frames,
-                "time_of_frames(seconds)": frametimes
-            }
-
-            failure_cases.append(faildict)
-
         new_dict = {
             'ID': i,
             'Video IDs': k,
             'Model Output': results,
             'Model Predictions': predictions,
             'Ground Truth': y_true,
-            'True Positive Count': true_pos,
-            'True Negative Count': true_neg,
-            'False Positive Count': false_pos,
-            'False Negative Count': false_neg,
+            'True Positive Count': evaluation_metrics['tp'],
+            'True Negative Count': evaluation_metrics['tn'],
+            'False Positive Count': evaluation_metrics['fp'],
+            'False Negative Count': evaluation_metrics['fn'],
             'Precision': evaluation_metrics['precision'],
             'Recall': evaluation_metrics['recall'],
             'F1 Score': evaluation_metrics['f1_score']
@@ -282,10 +308,10 @@ if __name__ == '__main__':
 
         with open(separate_file, 'w') as outfile:
             json.dump(data, outfile, indent=4)
-        total_true_neg += true_neg
-        total_true_pos += true_pos
-        total_false_pos += false_pos
-        total_false_neg += false_neg
+        total_true_neg += evaluation_metrics['tn']
+        total_true_pos += evaluation_metrics['tp']
+        total_false_pos += evaluation_metrics['fp']
+        total_false_neg += evaluation_metrics['fn']
     
     with open(separate_file, 'r') as file:
         data = json.load(file)
@@ -335,12 +361,8 @@ if __name__ == '__main__':
     
     new_dict = {
         'ID': 'Final Evaluation',
-        'Precision (Mean)': statistics.mean(conf_list),
-        'Precision (Standard Deviation)': statistics.stdev(conf_list),
-        'Recall (Mean)': statistics.mean(conf_list),
-        'Recall (Standard Deviation)': statistics.stdev(conf_list),
-        'F1 Score (Mean)': statistics.mean(conf_list),
-        'F1 Score (Standard Deviation)': statistics.stdev(conf_list)
+        'Mean': statistics.mean(conf_list),
+        'Standard Deviation': statistics.stdev(conf_list)
     }
 
     conf_results.append(new_dict)

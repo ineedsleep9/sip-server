@@ -31,15 +31,17 @@ def prompt_videollava(prompt, video_path):
     print(video_path)
     container = av.open(video_path)
 
+    fps = int(container.streams.video[0].average_rate)
+
     # sample uniformly 8 frames from the video
     total_frames = container.streams.video[0].frames
-    indices = np.arange(0, total_frames, total_frames / 8).astype(int)
+    indices = np.arange(0, total_frames, fps).astype(int)
     clip = read_video_pyav(container, indices)
 
     inputs = processor(text=prompt, videos=clip, return_tensors="pt").to(device)
 
     # Generate
-    generate_ids = model.generate(**inputs, max_length=80)
+    generate_ids = model.generate(**inputs, max_length=300)
     return processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
 
 
