@@ -10,7 +10,7 @@ from transformers import VideoLlavaProcessor, VideoLlavaForConditionalGeneration
 # Load the pre-trained model and tokenizer
 device = "cuda:0"
 
-model = VideoLlavaForConditionalGeneration.from_pretrained("LanguageBind/Video-LLaVA-7B-hf").to(device)
+model = VideoLlavaForConditionalGeneration.from_pretrained("LanguageBind/Video-LLaVA-7B-hf", device_map="auto")
 processor = VideoLlavaProcessor.from_pretrained("LanguageBind/Video-LLaVA-7B-hf")
 
 def read_video_pyav(container, indices):
@@ -38,7 +38,7 @@ def prompt_videollava(prompt, video_path):
     indices = np.arange(0, total_frames, fps).astype(int)
     clip = read_video_pyav(container, indices)
 
-    inputs = processor(text=prompt, videos=clip, return_tensors="pt").to(device)
+    inputs = processor(text=prompt, videos=clip, return_tensors="pt")
 
     # Generate
     generate_ids = model.generate(**inputs, max_length=300)
