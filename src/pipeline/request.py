@@ -147,10 +147,22 @@ class VideoLLaVA:
     def __init__(self, model_name="Video-LLaVA"):
         self.model_name = model_name
 
+    def read_video_pyav(self, container, indices):
+        frames = []
+        container.seek(0)
+        start_index = indices[0]
+        end_index = indices[-1]
+        for i, frame in enumerate(container.decode(video=0)):
+            if i > end_index:
+                break
+            if i >= start_index and i in indices:
+                frames.append(frame)
+        return np.stack([x.to_ndarray(format="rgb24") for x in frames])
+
     def get_response(self, video_path, client=None):
         if not client:
             print("need to make client :(")
-            client = Client("http://127.0.0.1:7860")
+            client = Client("http://127.0.0.1:7861")
         prompt = "USER: <video>The person in the video is either performing an Activity of Daily Life or falls in the video. Determine whether or not the person in the chronological series of images, which were extracted from a video, has fallen. Explain why you think the person has or has not fallen. ASSISTANT:"
         try:
             output = client.predict(
@@ -161,6 +173,23 @@ class VideoLLaVA:
             return output
         except requests.exceptions.RequestException as e:
             print("Error:", e)
+
+        # model = VideoLlavaForConditionalGeneration.from_pretrained("LanguageBind/Video-LLaVA-7B-hf")
+        # processor = VideoLlavaProcessor.from_pretrained("LanguageBind/Video-LLaVA-7B-hf")
+
+        # prompt = "USER: <video>The person in the video is either performing an Activity of Daily Life or falls in the video. Determine whether or not the person in the chronological series of images, which were extracted from a video, has fallen. Explain why you think the person has or has not fallen. ASSISTANT:"
+        # container = av.open(video_path)
+
+        # # sample uniformly 8 frames from the video
+        # total_frames = container.streams.video[0].frames
+        # indices = np.arange(0, total_frames, int(container.streams.video[0].average_rate)).astype(int)
+        # clip = self.read_video_pyav(container, indices)
+
+        # inputs = processor(text=prompt, videos=clip, return_tensors="pt")
+
+        # # Generate
+        # generate_ids = model.generate(**inputs, max_length=300)
+        # return processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
     
     def predict(self, directory):
         video_paths = load_vids(directory)

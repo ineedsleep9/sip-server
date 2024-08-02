@@ -26,7 +26,7 @@ def read_video_pyav(container, indices):
     return np.stack([x.to_ndarray(format="rgb24") for x in frames])
 
 # Define the inference function
-def prompt_videollava(prompt, video_path):
+def prompt_videollava(prompt, video_path):        # added img_path
     # Preprocess the image
     print(video_path)
     container = av.open(video_path)

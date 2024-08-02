@@ -157,7 +157,7 @@ if __name__ == '__main__':
     total_precision = []
     total_recall = []
     total_f1 = []
-    client = Client("http://127.0.0.1:7860")
+    # client = Client("http://127.0.0.1:7860")
 
     failure_cases = []
     conf_results = []
@@ -169,13 +169,15 @@ if __name__ == '__main__':
     total_false_pos = 0
     total_false_neg = 0
 
-    for i in tqdm(range(1, 11)):
+    for i in tqdm(range(1, 3)):
         k = random_vid_indices(30)
 
         print(k)
         while (True):
             try: 
-                update_evaluation_json_custom(video_directory=vid_directory, output_file=out_file, model=model, vidnums=k, client=client)
+                update_evaluation_json_custom(video_directory=vid_directory, output_file=out_file, model=model, vidnums=k)
+                # update_evaluation_json_custom(video_directory=vid_directory, output_file=out_file, model=model, vidnums=k, client=client)
+
                 break
             except Exception as e:
                 print("Error!", e)
